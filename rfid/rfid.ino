@@ -18,8 +18,27 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
 MFRC522DriverPinSimple ss_pin(5);
-MFRC522DriverSPI driver{ss_pin}; // Create SPI driver
-MFRC522 mfrc522{driver};         // Create MFRC522 instance
+MFRC522DriverSPI driver{ss_pin};
+MFRC522 mfrc522{driver};         
+
+// NOU: Funcție pentru salvarea datelor în users.json
+bool saveUsersToFile(JsonArray users) {
+    File file = SPIFFS.open("/users.json", "w");
+    if (!file) {
+        Serial.println("Eroare la deschiderea fisierului pentru scriere!");
+        return false;
+    }
+    
+    // Serializarea documentului JSON în fișier
+    if (serializeJson(users, file) == 0) {
+        Serial.println("Eroare la scrierea in fisier!");
+        file.close();
+        return false;
+    }
+    file.close();
+    Serial.println("Users.json salvat cu succes!");
+    return true;
+}
 
 // Funcție de gestionare a evenimentelor WebSocket
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
@@ -28,7 +47,60 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
     } else if (type == WS_EVT_DISCONNECT) {
         Serial.printf("WebSocket client #%u disconnected\n", client->id());
     } else if (type == WS_EVT_DATA) {
+        // Procesează mesajele primite de la client (browser)
+        StaticJsonDocument<512> doc;
+        DeserializationError error = deserializeJson(doc, data, len);
+
+        if (error) {
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.f_str());
+            return;
+        }
+
+        const char* messageType = doc["type"];
         
+        if (strcmp(messageType, "REGISTER") == 0) {
+            // Se primește o cerere de înregistrare
+            Serial.println("Cerere de inregistrare primita...");
+            
+            // Citim datele din users.json
+            File file = SPIFFS.open("/users.json", "r");
+            if (!file) {
+                Serial.println("Eroare la deschiderea users.json pentru citire!");
+                return;
+            }
+
+            StaticJsonDocument<1024> usersDoc;
+            DeserializationError err = deserializeJson(usersDoc, file);
+            file.close();
+
+            if (err) {
+                Serial.print(F("Eroare la parsarea users.json: "));
+                Serial.println(err.f_str());
+                return;
+            }
+
+            JsonArray users = usersDoc.to<JsonArray>();
+            
+            // Creăm obiectul noului utilizator
+            JsonObject newUser = users.createNestedObject();
+            newUser["UID"] = doc["uid"].as<String>();
+            newUser["Nume"] = doc["Nume"].as<String>();
+            newUser["Prenume"] = doc["Prenume"].as<String>();
+            newUser["Rol"] = doc["Rol"].as<String>();
+            
+            // Salvăm noul array în fișier
+            if (saveUsersToFile(users)) {
+                // Trimitere mesaj de succes la client (browser)
+                StaticJsonDocument<256> responseDoc;
+                responseDoc["type"] = "REGISTER_SUCCESS";
+                responseDoc["user"] = newUser; 
+                
+                String response;
+                serializeJson(responseDoc, response);
+                client->text(response);
+            }
+        }
     }
 }
 
@@ -45,7 +117,6 @@ void initWebServer() {
     Serial.println("\nWiFi connected.");
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
-
     if (!SPIFFS.begin(true)) {
         Serial.println("SPIFFS Mount Failed!");
         return;
@@ -55,13 +126,15 @@ void initWebServer() {
 
     ws.onEvent(onWsEvent);
     server.addHandler(&ws);
-
     server.serveStatic("/", SPIFFS, "/");
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(SPIFFS, "/index.html", "text/html");
     });
-
+    // Permite browser-ului sa citeasca users.json de pe SPIFFS
+    server.on("/users.json", HTTP_GET, [](AsyncWebServerRequest *request) {
+        request->send(SPIFFS, "/users.json", "application/json");
+    });
     server.onNotFound([](AsyncWebServerRequest *request) {
         request->send(404, "text/plain", "Not found");
     });
@@ -72,36 +145,47 @@ void initWebServer() {
 
 
 void setup() {
-  Serial.begin(115200);  // Initialize serial communication
-  while (!Serial);       // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4).
+  Serial.begin(115200);
+  while (!Serial);
 
   initWebServer();
-  mfrc522.PCD_Init();    // Init MFRC522 board.
-  MFRC522Debug::PCD_DumpVersionToSerial(mfrc522, Serial);  // Show details of PCD - MFRC522 Card Reader details.
+  mfrc522.PCD_Init();
+  MFRC522Debug::PCD_DumpVersionToSerial(mfrc522, Serial);
   Serial.println(F("Scan PICC to see UID"));
 }
 
 void loop() {
-  // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
   if (!mfrc522.PICC_IsNewCardPresent()) {
     return;
   }
 
-  // Select one of the cards.
   if (!mfrc522.PICC_ReadCardSerial()) {
     return;
   }
 
-  // Save the UID on a String variable
   String uidString = "";
   for (byte i = 0; i < mfrc522.uid.size; i++) {
     if (mfrc522.uid.uidByte[i] < 0x10) {
-      uidString += "0"; 
+      uidString += "0";
     }
     uidString += String(mfrc522.uid.uidByte[i], HEX);
   }
+  uidString.toUpperCase();
+
+  Serial.print("UID scanat: ");
   Serial.println(uidString);
-  delay(2000);
+  
+  // Trimitere UID catre clientul WebSocket
+  StaticJsonDocument<128> doc;
+  doc["type"] = "UID_SCAN";
+  doc["uid"] = uidString;
+  
+  String jsonOutput;
+  serializeJson(doc, jsonOutput);
+  ws.textAll(jsonOutput);
+
+  mfrc522.PICC_HaltA();
+  mfrc522.PCD_StopCrypto1();
   
   ws.cleanupClients();
 }

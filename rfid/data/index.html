@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Control Acces RFID</title>
+
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <div class="rfid-box">
+        
+        <h2>Control Acces RFID</h2>
+        <p class="status">Stare Conexiune: 
+            <span id="status" class="status-disconnected">Deconectat.</span>
+        </p>
+
+        <hr>
+
+        <h3>Rezultat Scanare</h3>
+        <div id="user-display">
+            Aștept cardul...
+        </div>
+
+        <hr>
+
+        <div id="registration-form">
+            <h4>Înregistrare Utilizator Nou</h4>
+            <p class="warning">UID-ul <strong id="reg-uid-display"></strong> nu a fost găsit.</p>
+
+            <form id="registration-form-element" onsubmit="saveNewUser(event)">
+                <label for="reg-nume">Nume:</label>
+                <input type="text" id="reg-nume" required>
+
+                <label for="reg-prenume">Prenume:</label>
+                <input type="text" id="reg-prenume" required>
+
+                <label for="reg-rol">Rol (Grad):</label>
+                <select id="reg-rol" required>
+                    <option value="">Alege Rolul</option>
+                    <option value="Student">Student</option>
+                    <option value="Profesor">Profesor</option>
+                </select>
+
+                <button type="submit" class="btn-register">Înregistrează</button>
+            </form>
+        </div>
+        
+        <div id="database-display">
+            </div>
+
+        <hr>
+        <button id="admin-button" class="btn-admin">Mod Administrare</button>
+        <p id="admin-status" class="warning"></p> 
+        
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>

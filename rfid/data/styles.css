@@ -1,0 +1,186 @@
+/* styles.css */
+
+body {
+    background-color: #ecf0f1; 
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.rfid-box {
+    width: 350px; 
+    min-height: 450px; 
+    padding: 20px;
+    margin: 50px auto; 
+    background-color: #f0f0f0;
+
+    border: 2px solid #3498db;
+    border-radius: 10px;
+    box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.3);
+
+    color: #2c3e50;
+    text-align: center;
+}
+
+h2, h3, h4 {
+    color: #3498db;
+    margin-top: 5px;
+}
+
+hr {
+    border: 0;
+    height: 1px;
+    background-color: #bdc3c7;
+    margin: 15px 0;
+}
+
+/* Stiluri pentru Starea Conexiunii */
+.status {
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.status-connected {
+    color: #27ae60; 
+}
+
+.status-disconnected {
+    color: #e74c3c; 
+}
+
+/* Stiluri pentru Rezultatul Scanarii */
+#user-display {
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    text-align: left;
+    font-size: 1em;
+    min-height: 80px; 
+    border: 1px dashed #bdc3c7;
+}
+
+.access-granted {
+    background-color: #e8f5e9; 
+    color: #27ae60;
+    font-weight: bold;
+    border: 1px solid #27ae60;
+}
+
+.access-denied {
+    background-color: #ffebee; 
+    color: #c0392b;
+    font-weight: bold;
+    border: 1px solid #c0392b;
+}
+
+/* Stiluri pentru Formularul de Inregistrare */
+#registration-form { 
+    display: none; 
+    padding: 15px;
+    background-color: #ecf0f1;
+    border-radius: 5px;
+    text-align: left;
+}
+
+.warning {
+    color: #f39c12; 
+    font-size: 0.9em;
+    text-align: center;
+}
+
+.active-admin {
+    font-weight: bold;
+    color: #e67e22; 
+}
+
+label {
+    display: block;
+    margin-top: 8px;
+    font-weight: bold;
+}
+
+input[type="text"], select { 
+    width: 100%; 
+    padding: 8px; 
+    margin-top: 4px;
+    margin-bottom: 12px; 
+    box-sizing: border-box; 
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.btn-register {
+    background-color: #2980b9;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    width: 100%;
+}
+
+.btn-register:hover {
+    background-color: #3498db;
+}
+
+/* Stiluri pentru Afișarea Bazei de Date */
+#database-display {
+    display: none; 
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #ecf0f1;
+    border-radius: 5px;
+    text-align: center;
+    overflow-x: auto; 
+}
+
+#database-display h4 {
+    color: #2980b9;
+    margin-bottom: 10px;
+}
+
+#database-display table {
+    width: 100%;
+    border-collapse: collapse; 
+    font-size: 0.9em;
+    margin: 10px 0;
+}
+
+#database-display th, #database-display td {
+    border: 1px solid #bdc3c7;
+    padding: 8px;
+    text-align: left;
+}
+
+#database-display th {
+    background-color: #3498db;
+    color: white;
+    font-weight: bold;
+}
+
+#database-display tr:nth-child(even) {
+    background-color: #e9f5ff; 
+}
+
+/* Stil pentru butonul de administrare */
+.btn-admin {
+    background-color: #e67e22; 
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    width: 100%;
+    margin-top: 5px;
+}
+
+.btn-admin:hover:not(:disabled) {
+    background-color: #f39c12;
+}
+
+.btn-admin:disabled {
+    background-color: #95a5a6; 
+    cursor: not-allowed;
+}
