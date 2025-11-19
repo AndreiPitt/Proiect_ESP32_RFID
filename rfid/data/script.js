@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setAdminMode(false);
         hideDatabase(); 
         
+        // Citim users.json de pe ESP32
         fetch('/users.json') 
             .then(response => {
                 if (!response.ok) {
@@ -32,11 +33,12 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(text => {
                 if (text.trim() === '') {
+                    // Fișierul este gol sau conține doar spații
                     usersData = [];
                     console.warn('users.json este gol. Initializare lista utilizatori goala.');
                 } else {
                     try {
-                         usersData = JSON.parse(text); 
+                        usersData = JSON.parse(text); 
                     } catch (e) {
                         console.error('Eroare la parsarea JSON primit din users.json:', e);
                         usersData = [];
@@ -49,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => {
                 console.error('Eroare la citirea users.json:', error);
                 updateStatus('Eroare la incarcarea datelor...', 'disconnected');
+                // Încercăm să reîncărcăm datele
                 setTimeout(fetchUsersData, 5000); 
             });
     }
@@ -103,8 +106,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } else if (data.type === 'REGISTER_SUCCESS') {
                 alert('Utilizator înregistrat cu succes!');
+                // Reîncărcăm lista de utilizatori de pe ESP32
                 fetchUsersData(); 
                 displayUserInfo(data.user, 'Permis (Nou)'); 
+            } else if (data.type === 'REGISTER_FAIL') {
+                alert(`Eroare la înregistrare: ${data.message}`);
+                updateStatus('Eroare la salvarea datelor', 'disconnected');
             }
 
         } catch (e) {
@@ -129,8 +136,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (rol === 'Admin') {
-             alert('Rolul de Administrator nu poate fi setat prin formularul de înregistrare.');
-             return;
+            alert('Rolul de Administrator nu poate fi setat prin formularul de înregistrare.');
+            return;
         }
 
         const registrationMessage = {
@@ -145,6 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
             websocket.send(JSON.stringify(registrationMessage));
             console.log("Trimis cerere de înregistrare:", registrationMessage);
             document.getElementById('user-display').innerHTML = '<p>Se trimite cererea de înregistrare...</p>';
+            // Ascunde formularul după trimitere
+            hideRegistrationForm(); 
         } else {
             alert('Eroare: Conexiunea WebSocket este închisă. Vă rugăm reîncărcați pagina.');
         }
@@ -252,7 +261,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setAdminMode(true);
     });
     
-    window.saveNewUser = saveNewUser;
+    // Asigură că funcția este accesibilă din formularul HTML
+    document.getElementById('registration-form-element').addEventListener('submit', saveNewUser);
     
     initWebSocket(); 
 });

@@ -19,9 +19,14 @@ AsyncWebSocket ws("/ws");
 
 MFRC522DriverPinSimple ss_pin(5);
 MFRC522DriverSPI driver{ss_pin};
-MFRC522 mfrc522{driver};         
+MFRC522 mfrc522{driver};     
 
-// NOU: Funcție pentru salvarea datelor în users.json
+// Dimensiune estimată pentru DynamicJsonDocument (2KB ar trebui să fie de ajuns pentru ~15-20 useri)
+// Dacă aveți mai mulți, măriți această valoare!
+const size_t JSON_DOC_SIZE = 2048; 
+
+
+// Funcție pentru salvarea datelor în users.json (Acesta suprascrie întotdeauna cu array-ul complet)
 bool saveUsersToFile(JsonArray users) {
     File file = SPIFFS.open("/users.json", "w");
     if (!file) {
@@ -60,36 +65,44 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
         const char* messageType = doc["type"];
         
         if (strcmp(messageType, "REGISTER") == 0) {
-            // Se primește o cerere de înregistrare
             Serial.println("Cerere de inregistrare primita...");
             
-            // Citim datele din users.json
+            // 1. Citim datele din users.json (folosim DynamicJsonDocument pentru dimensiune flexibilă)
             File file = SPIFFS.open("/users.json", "r");
-            if (!file) {
-                Serial.println("Eroare la deschiderea users.json pentru citire!");
-                return;
-            }
-
-            StaticJsonDocument<1024> usersDoc;
-            DeserializationError err = deserializeJson(usersDoc, file);
-            file.close();
-
-            if (err) {
-                Serial.print(F("Eroare la parsarea users.json: "));
-                Serial.println(err.f_str());
-                return;
-            }
-
-            JsonArray users = usersDoc.to<JsonArray>();
             
-            // Creăm obiectul noului utilizator
+            // ATENȚIE: Am schimbat StaticJsonDocument în DynamicJsonDocument
+            DynamicJsonDocument usersDoc(JSON_DOC_SIZE);
+            JsonArray users; // Declaram JsonArray
+
+            if (file) {
+                // Încercăm să citim fișierul existent
+                DeserializationError err = deserializeJson(usersDoc, file);
+                file.close();
+
+                if (err) {
+                    Serial.print(F("Eroare la parsarea users.json existent: "));
+                    Serial.println(err.f_str());
+                    // Dacă eșuează, vom trata fișierul ca fiind gol (array gol)
+                    users = usersDoc.to<JsonArray>(); 
+                } else {
+                    // Parsarea a reușit, obținem array-ul existent
+                    users = usersDoc.as<JsonArray>();
+                }
+            } else {
+                Serial.println("users.json nu exista sau eroare la deschidere. Se creeaza un array gol.");
+                // Fișierul nu există, inițializăm un array JSON gol
+                users = usersDoc.to<JsonArray>();
+            }
+
+            // 2. Creăm obiectul noului utilizator și îl adăugăm la array-ul existent
+            // ATENȚIE: users.createNestedObject() adaugă noul obiect în usersDoc/users
             JsonObject newUser = users.createNestedObject();
             newUser["UID"] = doc["uid"].as<String>();
             newUser["Nume"] = doc["Nume"].as<String>();
             newUser["Prenume"] = doc["Prenume"].as<String>();
             newUser["Rol"] = doc["Rol"].as<String>();
             
-            // Salvăm noul array în fișier
+            // 3. Salvăm array-ul complet (vechi + nou) în fișier, suprascriind vechiul conținut
             if (saveUsersToFile(users)) {
                 // Trimitere mesaj de succes la client (browser)
                 StaticJsonDocument<256> responseDoc;
@@ -99,6 +112,9 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
                 String response;
                 serializeJson(responseDoc, response);
                 client->text(response);
+            } else {
+                // Trimitere mesaj de eșec
+                client->text("{\"type\":\"REGISTER_FAIL\",\"message\":\"Eroare la salvarea pe ESP32\"}");
             }
         }
     }
@@ -107,16 +123,24 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
 
 void initWebServer() {
     WiFi.begin(ssid, password);
-    delay(2000);
-
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
+    Serial.print("Connecting to WiFi");
+    int attempts = 0;
+    while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+        delay(500);
         Serial.print(".");
+        attempts++;
     }
 
-    Serial.println("\nWiFi connected.");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("\nWiFi connected.");
+        Serial.print("IP address: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.println("\nFailed to connect to WiFi.");
+        return;
+    }
+
+
     if (!SPIFFS.begin(true)) {
         Serial.println("SPIFFS Mount Failed!");
         return;
@@ -145,47 +169,47 @@ void initWebServer() {
 
 
 void setup() {
-  Serial.begin(115200);
-  while (!Serial);
+    Serial.begin(115200);
+    while (!Serial);
 
-  initWebServer();
-  mfrc522.PCD_Init();
-  MFRC522Debug::PCD_DumpVersionToSerial(mfrc522, Serial);
-  Serial.println(F("Scan PICC to see UID"));
+    initWebServer();
+    mfrc522.PCD_Init();
+    MFRC522Debug::PCD_DumpVersionToSerial(mfrc522, Serial);
+    Serial.println(F("Scan PICC to see UID"));
 }
 
 void loop() {
-  if (!mfrc522.PICC_IsNewCardPresent()) {
-    return;
-  }
-
-  if (!mfrc522.PICC_ReadCardSerial()) {
-    return;
-  }
-
-  String uidString = "";
-  for (byte i = 0; i < mfrc522.uid.size; i++) {
-    if (mfrc522.uid.uidByte[i] < 0x10) {
-      uidString += "0";
+    if (!mfrc522.PICC_IsNewCardPresent()) {
+        return;
     }
-    uidString += String(mfrc522.uid.uidByte[i], HEX);
-  }
-  uidString.toUpperCase();
 
-  Serial.print("UID scanat: ");
-  Serial.println(uidString);
-  
-  // Trimitere UID catre clientul WebSocket
-  StaticJsonDocument<128> doc;
-  doc["type"] = "UID_SCAN";
-  doc["uid"] = uidString;
-  
-  String jsonOutput;
-  serializeJson(doc, jsonOutput);
-  ws.textAll(jsonOutput);
+    if (!mfrc522.PICC_ReadCardSerial()) {
+        return;
+    }
 
-  mfrc522.PICC_HaltA();
-  mfrc522.PCD_StopCrypto1();
-  
-  ws.cleanupClients();
+    String uidString = "";
+    for (byte i = 0; i < mfrc522.uid.size; i++) {
+        if (mfrc522.uid.uidByte[i] < 0x10) {
+            uidString += "0";
+        }
+        uidString += String(mfrc522.uid.uidByte[i], HEX);
+    }
+    uidString.toUpperCase();
+
+    Serial.print("UID scanat: ");
+    Serial.println(uidString);
+    
+    // Trimitere UID catre clientul WebSocket
+    StaticJsonDocument<128> doc;
+    doc["type"] = "UID_SCAN";
+    doc["uid"] = uidString;
+    
+    String jsonOutput;
+    serializeJson(doc, jsonOutput);
+    ws.textAll(jsonOutput);
+
+    mfrc522.PICC_HaltA();
+    mfrc522.PCD_StopCrypto1();
+    
+    ws.cleanupClients();
 }
