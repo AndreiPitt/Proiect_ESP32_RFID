@@ -1,0 +1,8 @@
+ESP-ul se conecteaza la o retea de internet apoi returneaza pe serial monitor adresa ipv4.
+Cu ajutorul SPIFFS se adauga fisierele necesare  frontendului (pagina web: html,css,js).
+S-a realizat logica necesara scanarii cardului cu RFID si afiseaza pe serial monitor: UID
+Se trimite UID pe websocket --> server web pe ESP (pagina web unde se poate vedea daca s-a scanat rfid ul)
+Daca exista UID in users.json atunci se valideaza accesul.
+Daca nu exista UID in users.json atunci se deschide pe pagina web un formular de inregistrare.
+
+Exista si un buton pe interfata pentru a verifica intrarile din users.json. Acesta necesita validarea prin scanarea unui card special de administrator.
