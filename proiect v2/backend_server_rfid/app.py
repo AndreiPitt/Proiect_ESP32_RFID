@@ -2,12 +2,11 @@ from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone, timedelta
 import os
-import pytz  # <-- NOU: Import pentru gestionarea fusului orar
+import pytz
 
 # --- FLASK AND DB SETUP ---
 app = Flask(__name__)
 
-# Configurare calea bazei de date (folosind calea absolută pentru siguranță)
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'rfid_app.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -15,71 +14,46 @@ app.config['SECRET_KEY'] = 'a_super_secret_key_for_flask_forms'
 
 db = SQLAlchemy(app)
 
-# Variabilă globală pentru logica anti-spam (5 minute = 300 secunde)
 SCAN_COOLDOWN_SECONDS = 300
 
 # --- TIMEZONE SETUP ---
-# Fusul orar al utilizatorului final (pentru afisare)
 TARGET_TIMEZONE = pytz.timezone('Europe/Bucharest')
 
 
 # --- MODEL DEFINITIONS ---
-
 class Person(db.Model):
     __tablename__ = 'person'
     id = db.Column(db.Integer, primary_key=True)
     uid_card = db.Column(db.String(50), unique=True, nullable=False)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
-
     is_inside = db.Column(db.Boolean, default=False)
     last_action_time = db.Column(db.DateTime, default=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
-
     logs = db.relationship('Log', backref='person', lazy=True)
-
-    def __repr__(self):
-        return f'<Person {self.last_name}, {self.first_name}>'
 
 
 class Log(db.Model):
     __tablename__ = 'log'
     id = db.Column(db.Integer, primary_key=True)
     person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
-
-    # Folosim UTC pentru consistență la salvare
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     action = db.Column(db.String(3), nullable=False)
 
-    def __repr__(self):
-        return f'<Log {self.action} for Person {self.person_id} at {self.timestamp}>'
 
-
-# --- UTILITY: Inițializare DB ---
+# --- UTILITY FUNCTIONS ---
 def initialize_db():
     db.create_all()
 
-    people = Person.query.filter(Person.last_action_time.is_(None)).all()
-    if people:
-        default_time = datetime(1970, 1, 1, tzinfo=timezone.utc)
-        for person in people:
-            person.last_action_time = default_time
-        db.session.commit()
 
-
-# --- UTILITY: Timp Localizare (NOU) ---
 def localize_timestamp(timestamp):
     """Convertește un datetime (presupus UTC) în fusul orar local (TARGET_TIMEZONE)."""
-    # 1. Asigurăm că timestamp-ul este "aware" (cunoscut în UTC)
     if timestamp.tzinfo is None:
         utc_dt = timestamp.replace(tzinfo=pytz.utc)
     else:
         utc_dt = timestamp.astimezone(pytz.utc)
-
-    # 2. Convertim din UTC în fusul orar țintă
     return utc_dt.astimezone(TARGET_TIMEZONE)
 
 
-# --- UTILITY: Calcul Durată Activitate ---
 def calculate_session_durations(logs):
     sessions = []
     current_session_start = None
@@ -117,30 +91,21 @@ def calculate_session_durations(logs):
     return sorted(sessions, key=lambda x: x['start'], reverse=True)
 
 
-# --- UTILITY: Formatare Durată (pentru Jinja) ---
 def format_timedelta(td):
     """Formatează un obiect timedelta într-un șir de tipul Xh Ym Zs."""
-    if td is None:
-        return "N/A"
-
+    if td is None: return "N/A"
     total_seconds = int(td.total_seconds())
-    if total_seconds < 0:
-        total_seconds = 0
+    if total_seconds < 0: total_seconds = 0
 
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
 
     parts = []
-    if hours > 0:
-        parts.append(f"{hours}h")
-    if minutes > 0 or (hours > 0 and seconds >= 0):
-        parts.append(f"{minutes}m")
-    if seconds > 0 or total_seconds == 0:
-        parts.append(f"{seconds}s")
+    if hours > 0: parts.append(f"{hours}h")
+    if minutes > 0 or (hours > 0 and seconds >= 0): parts.append(f"{minutes}m")
+    if seconds > 0 or total_seconds == 0: parts.append(f"{seconds}s")
 
-    if not parts:
-        return "0s"
-
+    if not parts: return "0s"
     return " ".join(parts)
 
 
@@ -148,7 +113,7 @@ def format_timedelta(td):
 app.jinja_env.globals.update(
     localize_timestamp=localize_timestamp,
     format_timedelta=format_timedelta,
-    TARGET_TIMEZONE_NAME=TARGET_TIMEZONE.zone  # 'Europe/Bucharest'
+    TARGET_TIMEZONE_NAME=TARGET_TIMEZONE.zone
 )
 
 
@@ -158,10 +123,13 @@ def scan_rfid(card_uid):
     person = Person.query.filter_by(uid_card=card_uid).first()
     now_utc = datetime.now(timezone.utc)
 
-    # 1. Card neînregistrat
+    # 1. Card neînregistrat - Returnează 403, ESP32 poate interpreta și afișa linkul.
     if not person:
-        return jsonify({'message': 'Card neînregistrat!'},
-                       {'card_uid': card_uid}), 403
+        return jsonify({
+            'message': 'Card neînregistrat!',
+            'card_uid': card_uid,
+            'action': 'REGISTER_REQUIRED'
+        }), 403
 
     # 2. Logica Cooldown (Anti-Spam)
     last_action_time = person.last_action_time
@@ -199,7 +167,7 @@ def scan_rfid(card_uid):
     }), 200
 
 
-# --- RUTA ADMIN: Înregistrare Persoană ---
+# --- RUTA ADMIN: Înregistrare Persoană (Admin) ---
 @app.route('/register', methods=['GET', 'POST'])
 def register_person():
     if request.method == 'POST':
@@ -220,6 +188,42 @@ def register_person():
         return redirect(url_for('home', message_success=f'Persoana {last_name} a fost înregistrată cu succes.'))
 
     return render_template('register.html')
+
+
+# --- RUTA STUDENT: Înregistrare Publică (Cu Autocomplete UID) (NOUĂ) ---
+@app.route('/student_register', methods=['GET', 'POST'])
+def student_register():
+    # 1. Gestionarea Cererii POST (Salvarea datelor)
+    if request.method == 'POST':
+        card_uid = request.form.get('uid_card').strip().upper()
+        first_name = request.form.get('first_name').strip()
+        last_name = request.form.get('last_name').strip()
+
+        if not card_uid or not first_name or not last_name:
+            return render_template('student_register.html',
+                                   error_message="Toate câmpurile sunt obligatorii.",
+                                   uid=card_uid), 400
+
+        if Person.query.filter_by(uid_card=card_uid).first():
+            return render_template('student_register.html',
+                                   error_message=f"Acest card ({card_uid}) este deja înregistrat.",
+                                   uid=card_uid), 400
+
+        # Salvarea datelor
+        new_person = Person(uid_card=card_uid, first_name=first_name, last_name=last_name)
+        db.session.add(new_person)
+        db.session.commit()
+
+        # Afișează succesul pe aceeași pagină (resetând formularul, fără UID pre-completat)
+        return render_template('student_register.html',
+                               message_success=f"Înregistrare reușită pentru {first_name} {last_name}! Puteți începe scanarea.")
+
+    # 2. Gestionarea Cererii GET (Afișarea formularului)
+    # Preia UID-ul din query string (ex: /student_register?uid=A1B2C3D4)
+    pre_filled_uid = request.args.get('uid', '').strip().upper()
+
+    return render_template('student_register.html',
+                           uid=pre_filled_uid)
 
 
 # --- RUTA ADMIN: Status Curent (Home) ---
@@ -275,4 +279,5 @@ def view_logs():
 if __name__ == '__main__':
     with app.app_context():
         initialize_db()
-    app.run(debug=True)
+    # app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0')

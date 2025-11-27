@@ -2,7 +2,7 @@
 
 {% block content %}
     <h2 class="mb-4"><i class="fas fa-chart-bar me-2"></i> Dashboard - Status Curent</h2>
-    <p class="text-muted">Vizualizare rapidă a persoanelor din clădire. Timpul este afișat în fusul orar **{{ TARGET_TIMEZONE_NAME }}**.</p>
+    <p class="text-muted">Vizualizare rapidă a persoanelor din sala de curs.</p>
 
     <div class="row mb-4">
         {% set total_people = people|length %}
@@ -14,7 +14,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h5 class="card-title text-uppercase fw-light">Total Persoane</h5>
+                            <h5 class="card-title text-uppercase fw-light">Total Persoane Inregistrate</h5>
                             <p class="h1 mb-0">{{ total_people }}</p>
                         </div>
                         <i class="fas fa-users fa-3x opacity-50"></i>
@@ -27,7 +27,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h5 class="card-title text-uppercase fw-light">În Clădire</h5>
+                            <h5 class="card-title text-uppercase fw-light">În Clasa</h5>
                             <p class="h1 mb-0">{{ people_inside }}</p>
                         </div>
                         <i class="fas fa-door-open fa-3x opacity-50"></i>
@@ -40,7 +40,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h5 class="card-title text-uppercase fw-light">În Afara Clădirii</h5>
+                            <h5 class="card-title text-uppercase fw-light">Absenti</h5>
                             <p class="h1 mb-0">{{ people_outside }}</p>
                         </div>
                         <i class="fas fa-door-closed fa-3x opacity-50"></i>
