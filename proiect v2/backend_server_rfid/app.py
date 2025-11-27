@@ -80,7 +80,7 @@ def scan_rfid(card_uid):
     if time_since_last_action.total_seconds() < SCAN_COOLDOWN_SECONDS:
         # Cod 429: Too Many Requests
         return jsonify({
-            'message': 'Scanați prea repede! Așteptați.',
+            'message': 'Scanati prea repede! Așteptati 5 minute!',
             'status': 'COOLDOWN'
         }), 429
 
@@ -153,4 +153,5 @@ if __name__ == '__main__':
     with app.app_context():
         # Creează tabelele Person și Log în baza de date
         db.create_all()
-    app.run(debug=True)
+    # app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
