@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 class="mt-4">Înregistrare Persoană și Card RFID</h2>
+    <p class="text-muted">Introduceți datele persoanei și UID-ul cardului (citit o singură dată).</p>
+
+    {% if error_message %}
+        <div class="alert alert-danger" role="alert">
+            {{ error_message }}
+        </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('register_person') }}">
+        <div class="mb-3">
+            <label for="first_name" class="form-label">Prenume</label>
+            <input type="text" class="form-control" id="first_name" name="first_name" required>
+        </div>
+        <div class="mb-3">
+            <label for="last_name" class="form-label">Nume de Familie</label>
+            <input type="text" class="form-control" id="last_name" name="last_name" required>
+        </div>
+        <div class="mb-3">
+            <label for="uid_card" class="form-label">UID Card RFID (Ex: A1B2C3D4)</label>
+            <input type="text" class="form-control" id="uid_card" name="uid_card" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Înregistrează</button>
+    </form>
+{% endblock %}
