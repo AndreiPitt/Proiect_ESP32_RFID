@@ -24,9 +24,6 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           <ul class="navbar-nav me-auto mb-2 mb-md-0">
             <li class="nav-item">
-              <a class="nav-link text-dark" href="{{ url_for('home') }}"><i class="fas fa-chart-line me-1"></i> Status Curent</a>
-            </li>
-            <li class="nav-item">
               <a class="nav-link text-dark" href="{{ url_for('view_logs') }}"><i class="fas fa-history me-1"></i> Loguri</a>
             </li>
             <li class="nav-item">
@@ -38,13 +35,34 @@
     </nav>
 
     <main class="container py-4">
+        {% if message_success %}
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ message_success }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endif %}
+
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="footer text-center text-muted small">
-        &copy; 2025 Dashboard RFID
+    <footer class="footer">
+        <div class="container text-center">
+            <span class="text-muted small">© 2025 RFID App. Toate drepturile rezervate.</span>
+        </div>
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Funcție JavaScript pentru a ascunde automat mesajele de succes după 5 secunde
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const successAlert = document.querySelector('.alert-success');
+            if (successAlert) {
+                setTimeout(() => {
+                    const bsAlert = new bootstrap.Alert(successAlert);
+                    bsAlert.close();
+                }, 5000); // 5000 milisecunde = 5 secunde
+            }
+        });
+    </script>
 </body>
 </html>

@@ -2,8 +2,8 @@
 
 {% block content %}
     <h2 class="mb-4"><i class="fas fa-user-circle me-2"></i> Profil Persoană: {{ person.last_name }} {{ person.first_name }}</h2>
-    <p class="text-muted">Detalii și istoric activitate pentru **UID: {{ person.uid_card }}**.</p>
-    
+    <p class="text-muted">Detalii și istoric activitate pentru **UID: {{ person.uid_card }}**. Timpul este afișat în fusul orar **{{ TARGET_TIMEZONE_NAME }}**.</p>
+
     <div class="row mb-4">
         <div class="col-md-6">
             <div class="card text-white {% if person.is_inside %}bg-success{% else %}bg-danger{% endif %} shadow-sm h-100">
@@ -24,16 +24,16 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="col-md-6">
             <div class="card text-dark bg-info shadow-sm h-100">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <h5 class="card-title text-uppercase fw-light">Timp Total Logat (Acumulat)</h5>
-                            <p class="h1 mb-0">{{ total_duration }}</p>
+                            <h5 class="card-title text-uppercase fw-light">Număr Sesiuni Finalizate</h5>
+                            <p class="h1 mb-0">{{ total_sessions }}</p>
                         </div>
-                        <i class="fas fa-clock fa-3x opacity-50"></i>
+                        <i class="fas fa-list-ol fa-3x opacity-50"></i>
                     </div>
                 </div>
             </div>
@@ -42,7 +42,7 @@
 
     <div class="card shadow-sm mb-4">
         <div class="card-header bg-white fw-bold">
-            <i class="fas fa-hourglass-half me-1"></i> Durata Sesiunilor IN / OUT (Cele mai noi primele)
+            <i class="fas fa-hourglass-half me-1"></i> Detalii Sesiuni (IN / OUT)
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -57,12 +57,12 @@
                     <tbody>
                         {% for session in sessions %}
                         <tr>
-                            <td>{{ session.start.strftime('%Y-%m-%d %H:%M:%S') }} (UTC)</td>
+                            <td>{{ localize_timestamp(session.start).strftime('%Y-%m-%d %H:%M:%S') }}</td>
                             <td>
                                 {% if session.end is none %}
                                     <span class="badge bg-warning p-2 text-dark">SESIUNE DESCHISĂ</span>
                                 {% else %}
-                                    {{ session.end.strftime('%Y-%m-%d %H:%M:%S') }} (UTC)
+                                    {{ localize_timestamp(session.end).strftime('%Y-%m-%d %H:%M:%S') }}
                                 {% endif %}
                             </td>
                             <td>
@@ -83,6 +83,13 @@
         </div>
     </div>
 
+    <div class="alert alert-secondary shadow-sm text-center mb-4">
+        <p class="h5 mb-1"><i class="fas fa-clock me-1"></i> Timp Total Acumulat (din {{ total_sessions }} Sesiuni Complete):</p>
+        <p class="h2 fw-bold text-primary">{{ total_duration_sum }}</p>
+        <p class="mb-0 small text-muted">Timpul total real, incluzând și sesiunea curentă deschisă, este: **{{ total_duration_with_current }}**.</p>
+    </div>
+
+
     <div class="card shadow-sm">
         <div class="card-header bg-white fw-bold">
             <i class="fas fa-history me-1"></i> Istoric Scanări Brute (Ordinea Cronologică Inversă)
@@ -99,7 +106,7 @@
                     <tbody>
                         {% for log in logs %}
                         <tr>
-                            <td class="text-muted small">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }} (UTC)</td>
+                            <td class="text-muted small">{{ localize_timestamp(log.timestamp).strftime('%Y-%m-%d %H:%M:%S') }}</td>
                             <td>
                                 {% if log.action == 'IN' %}
                                     <span class="badge bg-success p-2"><i class="fas fa-sign-in-alt me-1"></i> {{ log.action }}</span>
