@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <h2 class="mb-4"><i class="fas fa-user-circle me-2"></i> Profil Persoană: {{ person.last_name }} {{ person.first_name }}</h2>
+    <p class="text-muted">Detalii și istoric activitate pentru **UID: {{ person.uid_card }}**.</p>
+    
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card text-white {% if person.is_inside %}bg-success{% else %}bg-danger{% endif %} shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title text-uppercase fw-light">Status Curent</h5>
+                            <p class="h1 mb-0">
+                                {% if person.is_inside %}
+                                    <i class="fas fa-check-circle me-2"></i> ÎNĂUNTRU
+                                {% else %}
+                                    <i class="fas fa-times-circle me-2"></i> AFARĂ
+                                {% endif %}
+                            </p>
+                        </div>
+                        <i class="fas fa-door-open fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card text-dark bg-info shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="card-title text-uppercase fw-light">Timp Total Logat (Acumulat)</h5>
+                            <p class="h1 mb-0">{{ total_duration }}</p>
+                        </div>
+                        <i class="fas fa-clock fa-3x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white fw-bold">
+            <i class="fas fa-hourglass-half me-1"></i> Durata Sesiunilor IN / OUT (Cele mai noi primele)
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Intrare (IN)</th>
+                            <th>Ieșire (OUT)</th>
+                            <th>Durată Ședere</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for session in sessions %}
+                        <tr>
+                            <td>{{ session.start.strftime('%Y-%m-%d %H:%M:%S') }} (UTC)</td>
+                            <td>
+                                {% if session.end is none %}
+                                    <span class="badge bg-warning p-2 text-dark">SESIUNE DESCHISĂ</span>
+                                {% else %}
+                                    {{ session.end.strftime('%Y-%m-%d %H:%M:%S') }} (UTC)
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-primary p-2">
+                                    {{ format_timedelta(session.duration) }}
+                                </span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not sessions %}
+                        <tr>
+                            <td colspan="3" class="text-center text-muted">Nu există log-uri de intrare/ieșire pentru această persoană.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-white fw-bold">
+            <i class="fas fa-history me-1"></i> Istoric Scanări Brute (Ordinea Cronologică Inversă)
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data & Ora</th>
+                            <th>Acțiune</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td class="text-muted small">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }} (UTC)</td>
+                            <td>
+                                {% if log.action == 'IN' %}
+                                    <span class="badge bg-success p-2"><i class="fas fa-sign-in-alt me-1"></i> {{ log.action }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger p-2"><i class="fas fa-sign-out-alt me-1"></i> {{ log.action }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -59,8 +59,7 @@
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Nume</th>
-                            <th>UID Card</th>
+                            <th>Nume</th> <th>UID Card</th>
                             <th>Status</th>
                             <th>Ultima Acțiune</th>
                         </tr>
@@ -68,7 +67,11 @@
                     <tbody>
                         {% for person in people %}
                         <tr class="{% if person.is_inside %}table-success{% else %}table-danger{% endif %} bg-opacity-10">
-                            <td class="fw-bold">{{ person.last_name }} {{ person.first_name }}</td>
+                            <td class="fw-bold">
+                                <a href="{{ url_for('view_person_profile', person_id=person.id) }}" class="text-decoration-none text-dark">
+                                    {{ person.last_name }} {{ person.first_name }}
+                                </a>
+                            </td>
                             <td><span class="badge bg-secondary">{{ person.uid_card }}</span></td>
                             <td>
                                 {% if person.is_inside %}

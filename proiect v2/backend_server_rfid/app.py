@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta  # <-- Adăugat timedelta
 import os
 
 # --- FLASK AND DB SETUP ---
@@ -69,6 +69,88 @@ def initialize_db():
             # Dacă last_action_time este None (pentru înregistrările vechi fără default)
             person.last_action_time = default_time
         db.session.commit()
+
+
+# --- UTILITY: Calcul Durată Activitate ---
+def calculate_session_durations(logs):
+    """
+    Calculează durata sesiunilor (șederilor) bazate pe log-urile IN/OUT.
+
+    logs: O listă de obiecte Log ordonată după timestamp ascendent (cel mai vechi primul).
+    Returnează: O listă de dicționare cu structura {'start': datetime, 'end': datetime/None, 'duration': timedelta, 'is_current': bool}
+    """
+    sessions = []
+    current_session_start = None
+    now_utc = datetime.now(timezone.utc)  # Timpul curent pentru a calcula sesiunile deschise
+
+    for log in logs:
+        # Asigurăm că timestamp-ul are timezone pentru calcule
+        log_timestamp = log.timestamp
+        if log_timestamp.tzinfo is None:
+            log_timestamp = log_timestamp.replace(tzinfo=timezone.utc)
+
+        if log.action == 'IN':
+            # Ignorăm IN-uri consecutive
+            if current_session_start is not None:
+                continue
+
+            current_session_start = log_timestamp
+
+        elif log.action == 'OUT':
+            if current_session_start is not None:
+                # Sesiune completă: IN -> OUT
+                duration = log_timestamp - current_session_start
+                sessions.append({
+                    'start': current_session_start,
+                    'end': log_timestamp,
+                    'duration': duration,
+                })
+                current_session_start = None  # Resetăm start-ul sesiunii
+
+    # Verificăm dacă a rămas o sesiune deschisă la sfârșitul logurilor (Persoana este IN)
+    if current_session_start is not None:
+        duration_so_far = now_utc - current_session_start
+        sessions.append({
+            'start': current_session_start,
+            'end': None,  # Marcat ca Sesiune Curentă Deschisă
+            'duration': duration_so_far,  # Durata până acum
+            'is_current': True  # Indicator suplimentar
+        })
+
+    # Sortează sesiunile de la cel mai recent start la cel mai vechi pentru afișare
+    return sorted(sessions, key=lambda x: x['start'], reverse=True)
+
+
+# --- UTILITY: Formatare Durată (pentru Jinja) ---
+def format_timedelta(td):
+    """Formatează un obiect timedelta într-un șir de tipul Xh Ym Zs."""
+    if td is None:
+        return "N/A"
+
+    total_seconds = int(td.total_seconds())
+    if total_seconds < 0:
+        total_seconds = 0
+
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours}h")
+    # Afișăm minutele chiar dacă sunt zero, dacă există ore.
+    if minutes > 0 or (hours > 0 and seconds >= 0):
+        parts.append(f"{minutes}m")
+    if seconds > 0 or total_seconds == 0:
+        parts.append(f"{seconds}s")
+
+    # Asigurăm că afișăm cel puțin un element (ex: 0s)
+    if not parts:
+        return "0s"
+
+    # Previne afișarea tipului "0h 5m 0s" ca "5m 0s" dacă sunt 0 ore
+    # Păstrează doar componentele care au valoare > 0, dar lasă minim "0s"
+
+    return " ".join(parts)
 
 
 # --- RUTA API: /scan/<card_uid> ---
@@ -163,6 +245,38 @@ def home():
                            total_people=total_people,
                            people_inside=people_inside,
                            message_success=message_success)
+
+
+# --- RUTA ADMIN: Profil Persoană (NOUA RUTA) ---
+@app.route('/profile/<int:person_id>')
+def view_person_profile(person_id):
+    # Preia persoana
+    person = Person.query.get_or_404(person_id)
+
+    # Preia log-urile persoanei ordonate cronologic (ASC) pentru calculul duratei
+    logs_for_calculation = Log.query.filter_by(person_id=person_id).order_by(Log.timestamp.asc()).all()
+
+    # Log-uri pentru afișare (DESC)
+    display_logs = Log.query.filter_by(person_id=person_id).order_by(Log.timestamp.desc()).all()
+
+    # Adăugăm funcția de formatare în Jinja înainte de a randa template-ul
+    app.jinja_env.globals.update(format_timedelta=format_timedelta)
+
+    # Calculăm duratele sesiunilor
+    sessions = calculate_session_durations(logs_for_calculation)
+
+    # Calculăm timpul total petrecut
+    total_duration = sum((s['duration'] for s in sessions if s.get('is_current') is not True), timedelta())
+
+    # Adăugăm și durata sesiunii curente la total dacă există una deschisă
+    current_session_duration = next((s['duration'] for s in sessions if s.get('is_current')), timedelta())
+    total_duration += current_session_duration
+
+    return render_template('profile.html',
+                           person=person,
+                           sessions=sessions,
+                           total_duration=format_timedelta(total_duration),
+                           logs=display_logs)
 
 
 # --- RUTA ADMIN: Vizualizare Loguri ---
