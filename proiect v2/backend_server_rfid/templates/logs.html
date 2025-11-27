@@ -1,31 +1,37 @@
 {% extends "base.html" %}
 
 {% block content %}
-    <h2 class="mt-4">Istoric Scanări (Loguri)</h2>
+    <h2 class="mb-4"><i class="fas fa-history me-2"></i> Istoric Scanări (Loguri)</h2>
     <p class="text-muted">Evenimentele sunt afișate de la cel mai nou la cel mai vechi.</p>
 
-    <table class="table table-striped table-hover">
-        <thead>
-            <tr>
-                <th>Data & Ora</th>
-                <th>Nume Persoană</th>
-                <th>Acțiune</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for log in logs %}
-            <tr>
-                <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                <td>{{ log.person.last_name }} {{ log.person.first_name }}</td>
-                <td>
-                    {% if log.action == 'IN' %}
-                        <span class="badge bg-primary">{{ log.action }}</span>
-                    {% else %}
-                        <span class="badge bg-warning text-dark">{{ log.action }}</span>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Data & Ora</th>
+                            <th>Nume Persoană</th>
+                            <th>Acțiune</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td class="text-muted small">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td class="fw-medium">{{ log.person.last_name }} {{ log.person.first_name }}</td>
+                            <td>
+                                {% if log.action == 'IN' %}
+                                    <span class="badge bg-success p-2"><i class="fas fa-sign-in-alt me-1"></i> {{ log.action }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger p-2"><i class="fas fa-sign-out-alt me-1"></i> {{ log.action }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 {% endblock %}

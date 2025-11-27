@@ -10,30 +10,29 @@ app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'rfid_app.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'a_super_secret_key_for_flask_forms'  # Adăugăm o cheie secretă
+app.config['SECRET_KEY'] = 'a_super_secret_key_for_flask_forms'  # Cheie secretă necesară
 
-db = SQLAlchemy(app)  # Inițializarea bazei de date SQLAlchemy
+db = SQLAlchemy(app)
 
-# Variabilă globală pentru logica anti-spam (5 minute)
+# Variabilă globală pentru logica anti-spam (5 minute = 300 secunde)
 SCAN_COOLDOWN_SECONDS = 300
 
 
-# --- MODEL DEFINITIONS (Mutate aici pentru a evita ImportError) ---
+# --- MODEL DEFINITIONS ---
 
 class Person(db.Model):
     __tablename__ = 'person'
     id = db.Column(db.Integer, primary_key=True)
-    # UID-ul cardului (cheie unică)
     uid_card = db.Column(db.String(50), unique=True, nullable=False)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
 
-    # Starea fizică: Când e True = Persoana este în clădire.
+    # Starea fizică: True = Persoana este în clădire.
     is_inside = db.Column(db.Boolean, default=False)
 
     # Timpul ultimei scanări (pentru a calcula cooldown-ul)
-    # Folosim datetime.min (sau o dată veche) pentru prima scanare
-    last_action_time = db.Column(db.DateTime, default=datetime(1970, 1, 1, tzinfo=timezone.utc))
+    # Folosim o dată veche ca default
+    last_action_time = db.Column(db.DateTime, default=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
 
     logs = db.relationship('Log', backref='person', lazy=True)
 
@@ -44,7 +43,6 @@ class Person(db.Model):
 class Log(db.Model):
     __tablename__ = 'log'
     id = db.Column(db.Integer, primary_key=True)
-    # Legătura către persoana care a scanat
     person_id = db.Column(db.Integer, db.ForeignKey('person.id'), nullable=False)
 
     # Folosim UTC pentru consistență
@@ -56,8 +54,24 @@ class Log(db.Model):
         return f'<Log {self.action} for Person {self.person_id} at {self.timestamp}>'
 
 
+# --- UTILITY: Inițializare/Curățare DB ---
+def initialize_db():
+    """Creează tabelele și se asigură că toți timpii sunt corecți (cu timezone)."""
+    db.create_all()
+
+    # Asigurăm că last_action_time are timezone pe toate înregistrările
+    # (Prevenim erori de comparare între datetime naive și aware)
+    people = Person.query.filter(Person.last_action_time.is_(None)).all()
+    if people:
+        print("Avertisment: Actualizare last_action_time cu valoare implicită UTC.")
+        default_time = datetime(1970, 1, 1, tzinfo=timezone.utc)
+        for person in people:
+            # Dacă last_action_time este None (pentru înregistrările vechi fără default)
+            person.last_action_time = default_time
+        db.session.commit()
+
+
 # --- RUTA API: /scan/<card_uid> ---
-# Metoda GET este folosită pentru simplitate în comunicarea cu ESP32
 @app.route('/scan/<string:card_uid>', methods=['GET'])
 def scan_rfid(card_uid):
     person = Person.query.filter_by(uid_card=card_uid).first()
@@ -66,21 +80,22 @@ def scan_rfid(card_uid):
     # 1. Card neînregistrat
     if not person:
         # Cod 403: Forbidden - Card necunoscut
-        return jsonify({'message': 'Card neînregistrat!'}), 403
+        return jsonify({'message': 'Card neînregistrat!'},
+                       {'card_uid': card_uid}), 403
 
-    # 2. Logica Cooldown (Anti-Spam)
-    # Asigurăm că last_action_time are timezone information, dacă nu are, o presupunem UTC
+    # 2. Logica Cooldown (Anti-Spam) - Cooldown INDIVIDUAL pe fiecare persoană
     last_action_time = person.last_action_time
+
+    # Asigurăm că timpul are informația de fus orar (important pentru comparații)
     if last_action_time.tzinfo is None:
-        # Dacă este naive, presupunem că este UTC (sau echivalentul lui min datetime)
         last_action_time = last_action_time.replace(tzinfo=timezone.utc)
 
     time_since_last_action = now_utc - last_action_time
 
     if time_since_last_action.total_seconds() < SCAN_COOLDOWN_SECONDS:
-        # Cod 429: Too Many Requests
+        remaining_seconds = int(SCAN_COOLDOWN_SECONDS - time_since_last_action.total_seconds())
         return jsonify({
-            'message': 'Scanati prea repede! Așteptati 5 minute!',
+            'message': f'Scanati prea repede! Așteptati încă {remaining_seconds} secunde!',
             'status': 'COOLDOWN'
         }), 429
 
@@ -97,7 +112,7 @@ def scan_rfid(card_uid):
     new_log = Log(person_id=person.id, action=new_action)
 
     db.session.add(new_log)
-    db.session.commit()  # Salvează TOATE modificările
+    db.session.commit()
 
     return jsonify({
         'message': f'Scanare OK. Actiune: {new_action}. {person.first_name} {person.last_name}',
@@ -110,24 +125,24 @@ def scan_rfid(card_uid):
 @app.route('/register', methods=['GET', 'POST'])
 def register_person():
     if request.method == 'POST':
-        # Procesează formularul
-        card_uid = request.form.get('uid_card')
-        first_name = request.form.get('first_name')
-        last_name = request.form.get('last_name')
+        card_uid = request.form.get('uid_card').strip().upper()  # Curățăm și standardizăm UID
+        first_name = request.form.get('first_name').strip()
+        last_name = request.form.get('last_name').strip()
 
         if not card_uid or not first_name or not last_name:
             return render_template('register.html', error_message="Toate câmpurile sunt obligatorii."), 400
 
         if Person.query.filter_by(uid_card=card_uid).first():
-            # Eroare: cardul există deja
-            return render_template('register.html', error_message="UID card deja înregistrat!"), 400
+            return render_template('register.html', error_message=f"UID card ({card_uid}) deja înregistrat!"), 400
 
         new_person = Person(uid_card=card_uid, first_name=first_name, last_name=last_name)
         db.session.add(new_person)
         db.session.commit()
-        return redirect(url_for('home'))
 
-    return render_template('register.html')  # Afișează formularul
+        # Redirecționare cu mesaj de succes
+        return redirect(url_for('home', message_success=f'Persoana {last_name} a fost înregistrată cu succes.'))
+
+    return render_template('register.html')
 
 
 # --- RUTA ADMIN: Status Curent (Home) ---
@@ -135,23 +150,34 @@ def register_person():
 def home():
     # Preia toate persoanele pentru afișarea statusului IN/OUT
     people = Person.query.order_by(Person.last_name).all()
-    return render_template('status.html', people=people)
+
+    # Preluarea mesajului de succes din redirect (dacă există)
+    message_success = request.args.get('message_success')
+
+    # Calculăm statisticile pentru Cardurile de pe Dashboard
+    total_people = len(people)
+    people_inside = sum(1 for p in people if p.is_inside)
+
+    return render_template('status.html',
+                           people=people,
+                           total_people=total_people,
+                           people_inside=people_inside,
+                           message_success=message_success)
 
 
 # --- RUTA ADMIN: Vizualizare Loguri ---
 @app.route('/logs')
 def view_logs():
     # Preia log-urile cel mai nou apărând primul
-    # Folosim .options(db.joinedload(Log.person)) pentru a prelua numele persoanei eficient (nu este necesar load-ul explicit cu SQLAlchemy 2.0+)
+    # Folosim join() automatizat de SQLAlchemy pentru a avea acces la person.last_name etc.
     logs = Log.query.order_by(Log.timestamp.desc()).all()
     return render_template('logs.html', logs=logs)
 
 
 # --- RULAREA APLICATIEI ---
 if __name__ == '__main__':
-    # Această secțiune este rulată doar când pornești scriptul direct
     with app.app_context():
-        # Creează tabelele Person și Log în baza de date
-        db.create_all()
-    # app.run(debug=True)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+        initialize_db()
+    # Porniți aplicația pe toate interfețele, ideal pentru ESP32 (schimbați la 5000 dacă nu folosiți portul default)
+    # app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(debug=True)
