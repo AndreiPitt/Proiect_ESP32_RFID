@@ -1,0 +1,7 @@
+1. Securitate (Recomandat): Protejarea rutelor de administrare (/, /logs, /profile, /register) cu o parolă simplă folosind Flask-HTTPAuth sau implementarea completă a sesiunilor cu Flask-Login.
+
+2. Mesaje de Feedback Vizuale: În loc să folosiți doar Serial Monitor pentru linkul de înregistrare, ați putea adăuga un mic ecran OLED sau LCD la ESP32 pentru a afișa mesajele în timp real direct la cititor.
+
+3. Deployment (Cloud/Ngrok): Dacă doriți să folosiți sistemul în afara rețelei locale, ați putea reveni la ideea de a folosi ngrok (pentru teste rapide) sau să faceți un deployment pe un serviciu cloud gratuit (Heroku, Render) pentru acces public real.
+
+4.Posibil in loc de ecran sa mai adaug un root pe admin panel pentru a afisa un qr code care ar redirectiona de pe telefon persoana direct pe linkul de inregistrare din serial monitor

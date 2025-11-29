@@ -28,7 +28,7 @@ class Person(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     is_inside = db.Column(db.Boolean, default=False)
-    last_action_time = db.Column(db.DateTime, default=lambda: datetime(1970, 1, 1, tzinfo=timezone.utc))
+    last_action_time = db.Column(db.DateTime, default=lambda: datetime(2026, 1, 1, tzinfo=timezone.utc))
     logs = db.relationship('Log', backref='person', lazy=True)
 
 
@@ -141,7 +141,7 @@ def scan_rfid(card_uid):
     if time_since_last_action.total_seconds() < SCAN_COOLDOWN_SECONDS:
         remaining_seconds = int(SCAN_COOLDOWN_SECONDS - time_since_last_action.total_seconds())
         return jsonify({
-            'message': f'Scanati prea repede! Așteptati încă {remaining_seconds} secunde!',
+            'message': f'Scanati prea repede! Asteptati inca {remaining_seconds} secunde!',
             'status': 'COOLDOWN'
         }), 429
 
