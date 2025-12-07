@@ -28,7 +28,7 @@ class Person(db.Model):
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     is_inside = db.Column(db.Boolean, default=False)
-    last_action_time = db.Column(db.DateTime, default=lambda: datetime(2026, 1, 1, tzinfo=timezone.utc))
+    last_action_time = db.Column(db.DateTime, default=lambda: datetime(2025, 2, 14, tzinfo=timezone.utc))
     logs = db.relationship('Log', backref='person', lazy=True)
 
 
@@ -126,7 +126,7 @@ def scan_rfid(card_uid):
     # 1. Card neînregistrat - Returnează 403, ESP32 poate interpreta și afișa linkul.
     if not person:
         return jsonify({
-            'message': 'Card neînregistrat!',
+            'message': 'Card neinregistrat!',
             'card_uid': card_uid,
             'action': 'REGISTER_REQUIRED'
         }), 403
